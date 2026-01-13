@@ -1,2 +1,14 @@
-# ai-product-from-scratch
-Build an AI communication analyzer from scratch to understand how AI products actually work. Learn prompt engineering, reasoning pipelines, and local LLM integration using Node.js - no frameworks, no abstractions, just fundamentals
+# AI Product From Scratch
+
+**Goal:** Understanding, not production.
+
+This repository teaches AI product development by building a real Communication Mirror agent - a tool that analyzes the emotional impact of messages. You'll learn:
+
+- How to structure multi-step AI reasoning
+- Prompt engineering that actually works
+- Local LLM integration with node-llama-cpp
+- Building without frameworks (so you understand what's happening)
+
+**Not included:** Production concerns, scalability, frameworks, deployment
+
+**What you get:** Deep understanding of how AI agents work under the hood

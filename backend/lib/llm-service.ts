@@ -76,6 +76,71 @@ function filterValidAlternatives(alternatives: Alternative[]): Alternative[] {
 }
 
 /**
+ * Normalize impact metric categories based on value
+ * 
+ * Ensures consistency: category must match value according to hard thresholds:
+ * - 0-30 → low
+ * - 31-60 → medium
+ * - 61-100 → high
+ */
+function normalizeImpactMetrics(impact: ImpactAnalysis): ImpactAnalysis {
+  const normalizedMetrics = impact.metrics.map(metric => {
+    let category: 'low' | 'medium' | 'high';
+    if (metric.value <= 30) {
+      category = 'low';
+    } else if (metric.value <= 60) {
+      category = 'medium';
+    } else {
+      category = 'high';
+    }
+    
+    // Log if category was corrected
+    if (metric.category !== category) {
+      console.warn(`[Impact] Corrected category for ${metric.name}: ${metric.value} was ${metric.category}, corrected to ${category}`);
+    }
+    
+    return {
+      ...metric,
+      category,
+    };
+  });
+  
+  return {
+    ...impact,
+    metrics: normalizedMetrics,
+  };
+}
+
+/**
+ * Filter out neutral emotions that add no signal
+ * 
+ * Removes emotions with text "Neutral" and sentiment "neutral" as they provide
+ * no useful information. If all emotions are filtered out, keeps at least one
+ * descriptive emotion (e.g., "Task-focused", "Professional", "Informational").
+ */
+function filterNeutralEmotions(tone: ToneAnalysis): ToneAnalysis {
+  const filtered = tone.emotions.filter(emotion => {
+    // Remove "Neutral" entries that add no signal
+    if (emotion.text.toLowerCase() === 'neutral' && emotion.sentiment === 'neutral') {
+      console.warn(`[Tone] Filtered out redundant neutral emotion`);
+      return false;
+    }
+    return true;
+  });
+  
+  // Ensure at least one emotion remains
+  if (filtered.length === 0 && tone.emotions.length > 0) {
+    console.warn(`[Tone] All emotions were neutral, keeping first emotion as fallback`);
+    return tone; // Return original if all would be filtered
+  }
+  
+  return {
+    ...tone,
+    emotions: filtered,
+  };
+}
+
+/**
  * LLM Service
  * 
  * Manages the local LLM model and provides methods for analyzing communication.
@@ -238,7 +303,7 @@ export class LLMService {
    */
   async analyzeTone(message: string, context?: string, sessionId?: string): Promise<ToneAnalysis> {
     this.ensureInitialized('tone');
-    return this.generateAnalysis(
+    const tone = await this.generateAnalysis(
       buildTonePrompt,
       this.grammars.tone!,
       this.validators.tone,
@@ -248,6 +313,9 @@ export class LLMService {
       'tone',
       sessionId
     );
+    
+    // Filter out neutral emotions that add no signal
+    return filterNeutralEmotions(tone);
   }
 
   /**
@@ -255,7 +323,7 @@ export class LLMService {
    */
   async predictImpact(message: string, context?: string, sessionId?: string): Promise<ImpactAnalysis> {
     this.ensureInitialized('impact');
-    return this.generateAnalysis(
+    const impact = await this.generateAnalysis(
       buildImpactPrompt,
       this.grammars.impact!,
       this.validators.impact,
@@ -265,6 +333,9 @@ export class LLMService {
       'impact',
       sessionId
     );
+    
+    // Normalize categories to ensure consistency with value thresholds
+    return normalizeImpactMetrics(impact);
   }
 
   /**
@@ -395,11 +466,15 @@ export class LLMService {
 
       // Filter out broken alternatives (fewer options > broken options)
       const validAlternatives = filterValidAlternatives(alternatives);
+      
+      // Normalize impact metrics and filter neutral emotions
+      const normalizedImpact = normalizeImpactMetrics(impact);
+      const filteredTone = filterNeutralEmotions(tone);
 
       return {
         intent,
-        tone,
-        impact,
+        tone: filteredTone,
+        impact: normalizedImpact,
         alternatives: validAlternatives,
       };
     } finally {

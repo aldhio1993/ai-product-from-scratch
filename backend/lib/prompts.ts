@@ -71,7 +71,7 @@ MESSAGE TO ANALYZE:
 Provide:
 - summary: A one-sentence overview of the overall tone (required, non-empty)
 - emotions: Array of detected emotional signals (REQUIRED: must have at least 1 item, NEVER empty), each with:
-  - text: The emotion label (e.g., "Frustrated", "Appreciative", "Anxious", "Hurt (mild)", "Disappointment (low intensity)", "Emotional discomfort", "Neutral") - must be non-empty
+  - text: The emotion label - must be descriptive and specific (e.g., "Frustrated", "Appreciative", "Anxious", "Hurt (mild)", "Disappointment (low intensity)", "Emotional discomfort", "Task-focused", "Professional", "Informational") - must be non-empty
   - sentiment: One of "positive", "neutral", or "negative" (required)
 - details: Specific observations about word choice, phrasing, or patterns that reveal tone. MUST be a complete, coherent explanation (required, non-empty, MUST NOT be cut off mid-sentence). CRITICAL: You MUST quote and reference specific words or phrases from the message (e.g., "The phrase 'maybe it's nothing' softens the assertion", "The use of 'a little' indicates mild intensity"). Explain HOW the specific wording produces the detected emotions. DO NOT return incomplete sentences like "The phrases 'felt " - complete your analysis fully.
 
@@ -80,25 +80,34 @@ CRITICAL RULES FOR EMOTIONS ARRAY:
 2. ANALYZE THE ACTUAL WORDS IN THE MESSAGE for emotional content:
    - Words like "felt dismissed", "frustrated", "hurt", "disappointed", "overlooked", "ignored" indicate NEGATIVE emotions
    - Words like "happy", "grateful", "excited", "appreciative" indicate POSITIVE emotions
-   - If the message expresses negative experiences or feelings, you MUST include negative emotions, NOT "Neutral"
+   - If the message expresses negative experiences or feelings, you MUST include negative emotions
 3. IF YOU DETECT EMOTIONS (positive or negative), list them with appropriate labels:
    - For mild negative emotions: "Hurt (mild)", "Disappointment (low intensity)", "Emotional discomfort", "Slight frustration"
    - For stronger emotions: "Frustrated", "Annoyed", "Disappointed", "Hurt"
    - For positive emotions: "Appreciative", "Grateful", "Happy", "Content"
-   - DO NOT include "Neutral" if you've detected any positive or negative emotions
-4. ONLY use "Neutral" if the message truly has NO emotional content (e.g., purely factual statements with no emotional words or expressions)
-5. CONSISTENCY CHECK: If your details mention "negative emotional experience", "frustration", "dismissed", etc., then your emotions array MUST include negative emotions, NOT "Neutral"
+4. FOR MESSAGES WITH NO STRONG EMOTIONAL CONTENT (purely factual, task-oriented):
+   - DO NOT use "Neutral" as the emotion text - it adds no signal
+   - Instead, use descriptive states that answer "What might the recipient feel?":
+     * "Task-focused" - recipient is focused on the task at hand
+     * "Professional" - recipient perceives professional tone
+     * "Informational" - recipient receives information without strong emotion
+     * "Matter-of-fact" - recipient perceives straightforward, unemotional communication
+   - These descriptive states provide useful signal about the communication style
+5. CONSISTENCY CHECK: If your details mention "negative emotional experience", "frustration", "dismissed", etc., then your emotions array MUST include negative emotions
 6. The emotions array is NEVER allowed to be empty - always include at least one emotion
+7. REMEMBER: Emotion lists should answer "What might the recipient feel?" - not "what else could be there?"
 
 Respond with this exact JSON structure:
 {
   "summary": "overall tone description",
   "emotions": [
     { "text": "Emotion1", "sentiment": "negative" },
-    { "text": "Emotion2", "sentiment": "neutral" }
+    { "text": "Task-focused", "sentiment": "neutral" }
   ],
   "details": "detailed analysis with specific examples from the message - MUST quote specific phrases like 'maybe it's nothing' or 'a little' and explain how they produce the detected emotions. MUST be complete, not cut off."
 }
+
+NOTE: Do NOT use "Neutral" as the emotion text. Use descriptive states like "Task-focused", "Professional", or "Informational" instead.
 
 CRITICAL: The details field MUST:
 1. Be a complete, coherent explanation - DO NOT cut off mid-sentence
@@ -163,7 +172,11 @@ CRITICAL RULES FOR METRICS ARRAY:
      * "Relationship Strain" (NOT "Relationship" or any other variation)
      * "Cooperation Likelihood" (NOT "Cooperation" or any other variation)
    - value: Integer between 0 and 100 inclusive (required, must be 0-100)
-   - category: "low" (0-33), "medium" (34-66), or "high" (67-100) (required, must match the value range)
+   - category: MUST match the value according to these EXACT thresholds (required):
+     * "low" for values 0-30 (inclusive)
+     * "medium" for values 31-60 (inclusive)
+     * "high" for values 61-100 (inclusive)
+   - CRITICAL: The category MUST match the value - do not use "medium" for values above 60, or "high" for values below 61
 4. DO NOT combine metric names or add words to them - use the exact names listed above
 
 Also provide recipientResponse: A realistic prediction of how the recipient might think or feel upon reading THIS specific message (required, non-empty string). 
@@ -423,7 +436,11 @@ DO NOT return empty strings, spaces, or incomplete sentences for any intent fiel
 2. "Defensive Response Likelihood" (NOT "Defensive Response" or any other variation)
 3. "Relationship Strain" (NOT "Relationship" or any other variation)
 4. "Cooperation Likelihood" (NOT "Cooperation" or any other variation)
-Each metric must have: name (EXACT match from list above), value (0-100), category (low/medium/high). DO NOT return an empty metrics array. DO NOT modify or combine metric names.\n`;
+Each metric must have: name (EXACT match from list above), value (0-100), category that MUST match the value:
+- "low" for values 0-30 (inclusive)
+- "medium" for values 31-60 (inclusive)
+- "high" for values 61-100 (inclusive)
+DO NOT return an empty metrics array. DO NOT modify or combine metric names. DO NOT use "medium" for values above 60, or "high" for values below 61.\n`;
   } else if (isToneDetailsError) {
     specificWarning = `\n\nCRITICAL ERROR: You returned an empty or incomplete details field. This is a HARD FAILURE. The details field MUST:
 1. Be a COMPLETE, coherent explanation - DO NOT cut off mid-sentence like "The phrases 'felt " - complete your analysis fully
@@ -441,10 +458,11 @@ DO NOT return incomplete sentences. If any section fails to render completely, o
 
 CRITICAL RULES FOR EMOTIONS:
 1. ANALYZE THE ACTUAL WORDS in the message for emotional content (e.g., "felt dismissed", "frustrated", "hurt" = negative emotions)
-2. If you detect negative emotions (like "dismissed", "frustration", "hurt"), you MUST include negative emotions like "Hurt (mild)", "Disappointment (low intensity)", or "Emotional discomfort" - NOT "Neutral"
-3. CONSISTENCY: If your details mention negative emotional experiences, your emotions array MUST include negative emotions, NOT "Neutral"
-4. ONLY use "Neutral" if the message truly has NO emotional content (purely factual statements)
-5. DO NOT return an empty emotions array.\n`;
+2. If you detect negative emotions (like "dismissed", "frustration", "hurt"), you MUST include negative emotions like "Hurt (mild)", "Disappointment (low intensity)", or "Emotional discomfort"
+3. CONSISTENCY: If your details mention negative emotional experiences, your emotions array MUST include negative emotions
+4. FOR MESSAGES WITH NO STRONG EMOTIONAL CONTENT: DO NOT use "Neutral" as the emotion text - use descriptive states like "Task-focused", "Professional", or "Informational" instead
+5. REMEMBER: Emotion lists should answer "What might the recipient feel?" - not "what else could be there?"
+6. DO NOT return an empty emotions array.\n`;
   } else if (isAlternativesError) {
     const emptyStringPart = isAlternativesEmptyStringError 
       ? `\n\nCRITICAL ERROR: You returned EMPTY STRINGS ("") for required fields in alternatives. This is a HARD FAILURE. ALL fields MUST contain actual content:
@@ -502,6 +520,11 @@ REQUIREMENTS YOU MUST FOLLOW:
     - "Defensive Response Likelihood" (NOT "Defensive Response" or any variation)
     - "Relationship Strain" (NOT "Relationship" or any variation)
     - "Cooperation Likelihood" (NOT "Cooperation" or any variation)
+  * Category MUST match value according to EXACT thresholds:
+    - "low" for values 0-30 (inclusive)
+    - "medium" for values 31-60 (inclusive)
+    - "high" for values 61-100 (inclusive)
+  * DO NOT use "medium" for values above 60, or "high" for values below 61
 - For tone analysis details field:
   * MUST be a COMPLETE, coherent explanation - DO NOT cut off mid-sentence
   * MUST quote specific words or phrases from the message using single quotes (e.g., 'maybe it's nothing', 'a little')
@@ -526,8 +549,9 @@ REQUIREMENTS YOU MUST FOLLOW:
   * If you cannot provide a complete reason for an alternative, do not include that alternative. Fewer valid options > broken options.
 - For tone analysis: 
   * emotions array MUST have at least 1 item
-  * ANALYZE ACTUAL WORDS in the message - if words like "felt dismissed", "frustrated", "hurt" appear, include negative emotions (e.g., "Hurt (mild)", "Disappointment (low intensity)"), NOT "Neutral"
-  * ONLY use "Neutral" if the message truly has NO emotional content
+  * ANALYZE ACTUAL WORDS in the message - if words like "felt dismissed", "frustrated", "hurt" appear, include negative emotions (e.g., "Hurt (mild)", "Disappointment (low intensity)")
+  * DO NOT use "Neutral" as the emotion text - use descriptive states like "Task-focused", "Professional", or "Informational" instead
+  * Emotion lists should answer "What might the recipient feel?" - not "what else could be there?"
   * Be consistent: if details mention negative emotions, emotions array must include negative emotions
 - For impact analysis: metrics array MUST have exactly 4 items - all 4 metrics must be provided
 - String fields cannot be empty (must have at least 1 character)

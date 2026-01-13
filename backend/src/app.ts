@@ -5,6 +5,7 @@ import { swaggerSpec } from './swagger.js';
 import { createHealthRouter } from './routes/health.js';
 import { createStatusRouter } from './routes/status.js';
 import { createSessionsRouter } from './routes/sessions.js';
+import { createLogsRouter } from './routes/logs.js';
 import { createAnalyzeHandler } from './routes/analyze.js';
 import {
   createIntentHandler,
@@ -60,6 +61,7 @@ export function createApp(
   app.use(createHealthRouter());
   app.use(createStatusRouter(llmService, modelLoading, modelLoadError, sessionManager));
   app.use(createSessionsRouter(sessionManager));
+  app.use(createLogsRouter('./logs'));
   
   // Full analysis route (all analyses in parallel)
   app.post(

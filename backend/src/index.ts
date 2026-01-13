@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { config } from './config.js';
 import { createApp } from './app.js';
 import { getLLMService, getSessionManager } from '../lib/index.js';
+import { getLLMLogger } from '../lib/llm-logger.js';
 import { startModelLoading } from './model-loader.js';
 
 /**
@@ -11,8 +12,15 @@ import { startModelLoading } from './model-loader.js';
  * Model loads asynchronously in the background.
  */
 
+// Initialize logger
+const logger = getLLMLogger('./logs', config.modelPath);
+logger.initialize().catch((error) => {
+  console.error('[Index] Failed to initialize logger:', error);
+});
+
 // Initialize services
 const llmService = getLLMService({ modelPath: config.modelPath });
+llmService.setLogger(logger);
 const sessionManager = getSessionManager();
 
 // Model loading state

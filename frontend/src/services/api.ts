@@ -127,6 +127,39 @@ interface CreateSessionResponse {
   createdAt: string;
 }
 
+interface SessionInfo {
+  sessionId: string;
+  logFile: string;
+  createdAt: string;
+  lastModified: string;
+}
+
+interface LogEntry {
+  timestamp: string;
+  type: 'request' | 'response' | 'error';
+  analysisType?: 'intent' | 'tone' | 'impact' | 'alternatives';
+  prompt?: string;
+  response?: string;
+  error?: string;
+  attempt?: number;
+  model?: string;
+  options?: {
+    temperature?: number;
+    maxTokens?: number;
+  };
+}
+
+interface SessionsListResponse {
+  success: true;
+  sessions: SessionInfo[];
+}
+
+interface SessionLogsResponse {
+  success: true;
+  sessionId: string;
+  entries: LogEntry[];
+}
+
 /**
  * Create a new session
  */
@@ -274,3 +307,35 @@ export async function checkApiHealth(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Get list of all sessions with logs
+ */
+export async function getSessionsList(): Promise<SessionInfo[]> {
+  try {
+    const response = await apiClient.get<SessionsListResponse>('/logs');
+    if (response.data.success) {
+      return response.data.sessions;
+    }
+    throw new Error('Invalid response from server');
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+/**
+ * Get logs for a specific session
+ */
+export async function getSessionLogs(sessionId: string): Promise<LogEntry[]> {
+  try {
+    const response = await apiClient.get<SessionLogsResponse>(`/logs/${sessionId}`);
+    if (response.data.success) {
+      return response.data.entries;
+    }
+    throw new Error('Invalid response from server');
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export type { SessionInfo, LogEntry };

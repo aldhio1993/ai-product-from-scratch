@@ -13,16 +13,16 @@ export function IntentAnalysis({ intent }: IntentAnalysisProps) {
         <div className="section-title">Intent Detection</div>
       </div>
       <div className="section-content">
-        <div className="intent-grid">
-          <div className="intent-card">
+        <div className="intent-rows">
+          <div className="intent-row intent-row-primary">
             <div className="intent-label">Primary</div>
             <div className="intent-value">{intent.primary}</div>
           </div>
-          <div className="intent-card">
+          <div className="intent-row intent-row-secondary">
             <div className="intent-label">Secondary</div>
             <div className="intent-value">{intent.secondary}</div>
           </div>
-          <div className="intent-card">
+          <div className="intent-row intent-row-implicit">
             <div className="intent-label">Implicit</div>
             <div className="intent-value">{intent.implicit}</div>
           </div>

@@ -5,18 +5,14 @@ interface EditorPanelProps {
   message: string;
   onMessageChange: (message: string) => void;
   onAnalyze: (message: string) => void;
-  onNewConversation: () => void;
   isLoading: boolean;
-  hasSession: boolean;
 }
 
 export function EditorPanel({
   message,
   onMessageChange,
   onAnalyze,
-  onNewConversation,
   isLoading,
-  hasSession,
 }: EditorPanelProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,40 +69,11 @@ export function EditorPanel({
           >
             {isLoading ? 'Analyzing...' : 'Analyze Communication'}
           </button>
-          {hasSession && (
-            <button
-              className="new-conversation-button"
-              onClick={onNewConversation}
-              disabled={isLoading}
-              style={{
-                padding: '14px 24px',
-                background: 'transparent',
-                border: '1px solid var(--color-border-strong)',
-                borderRadius: '6px',
-                color: 'var(--color-text-secondary)',
-                fontSize: '14px',
-                fontWeight: '600',
-                fontFamily: 'Inter, sans-serif',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--color-bg-tertiary)';
-                e.currentTarget.style.borderColor = 'var(--color-border-strong)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.borderColor = 'var(--color-border-strong)';
-              }}
-            >
-              New Conversation
-            </button>
-          )}
         </div>
 
         <div className="info-box">
           <strong>Note:</strong> This tool analyzes your message to help you understand its
-          emotional impact—it does not rewrite it for you.
+          emotional impact - it does not rewrite it for you.
         </div>
       </div>
     </div>

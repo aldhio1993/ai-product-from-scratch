@@ -98,7 +98,7 @@ export function createIntentHandler(
 
       const { sessionId, context } = getOrCreateSession(sessionManager, providedSessionId);
 
-      const intent = await llmService.analyzeIntent(message, context || undefined);
+      const intent = await llmService.analyzeIntent(message, context || undefined, sessionId);
 
       res.json({
         success: true,
@@ -176,7 +176,7 @@ export function createToneHandler(
 
       const { sessionId, context } = getOrCreateSession(sessionManager, providedSessionId);
 
-      const tone = await llmService.analyzeTone(message, context || undefined);
+      const tone = await llmService.analyzeTone(message, context || undefined, sessionId);
 
       res.json({
         success: true,
@@ -254,7 +254,7 @@ export function createImpactHandler(
 
       const { sessionId, context } = getOrCreateSession(sessionManager, providedSessionId);
 
-      const impact = await llmService.predictImpact(message, context || undefined);
+      const impact = await llmService.predictImpact(message, context || undefined, sessionId);
 
       res.json({
         success: true,
@@ -334,7 +334,7 @@ export function createAlternativesHandler(
 
       const { sessionId, context } = getOrCreateSession(sessionManager, providedSessionId);
 
-      const alternatives = await llmService.generateAlternatives(message, context || undefined);
+      const alternatives = await llmService.generateAlternatives(message, context || undefined, sessionId);
 
       res.json({
         success: true,

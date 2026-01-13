@@ -95,7 +95,7 @@ export function createAnalyzeHandler(
 
         // Run all analyses in parallel using batching
         console.log('[Analyze] Starting batched LLM analysis...');
-        const data = await llmService.analyzeBatched(message, context || undefined);
+        const data = await llmService.analyzeBatched(message, context || undefined, sessionId);
         console.log('[Analyze] Batched LLM analysis completed');
 
         // Store interaction in session

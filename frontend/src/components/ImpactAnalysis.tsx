@@ -10,18 +10,27 @@ export function ImpactAnalysis({ impact }: ImpactAnalysisProps) {
   const fillRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
-    // Animate impact bars
-    setTimeout(() => {
-      fillRefs.current.forEach((fill) => {
-        if (fill) {
-          const width = fill.style.width;
-          fill.style.width = '0';
-          setTimeout(() => {
-            fill.style.width = width;
-          }, 100);
+    // Animate impact bars after DOM is ready
+    const timeoutId = setTimeout(() => {
+      impact.metrics.forEach((metric, index) => {
+        const fill = fillRefs.current[index];
+        if (fill && metric.value !== undefined && !isNaN(metric.value)) {
+          // Store the target width from the metric value (ensure it's between 0-100)
+          const clampedValue = Math.max(0, Math.min(100, metric.value));
+          const targetWidth = `${clampedValue}%`;
+          // Reset to 0 first
+          fill.style.width = '0%';
+          // Force reflow to ensure the reset is applied
+          void fill.offsetHeight;
+          // Animate to target width using requestAnimationFrame for smooth animation
+          requestAnimationFrame(() => {
+            fill.style.width = targetWidth;
+          });
         }
       });
-    }, 300);
+    }, 150);
+    
+    return () => clearTimeout(timeoutId);
   }, [impact]);
 
   const getFillClass = (category: string) => {
@@ -49,9 +58,11 @@ export function ImpactAnalysis({ impact }: ImpactAnalysisProps) {
               </div>
               <div className="impact-bar">
                 <div
-                  ref={(el) => (fillRefs.current[index] = el)}
+                  ref={(el) => {
+                    fillRefs.current[index] = el;
+                  }}
                   className={`impact-fill ${getFillClass(metric.category)}`}
-                  style={{ width: `${metric.value}%` }}
+                  style={{ width: '0%' }}
                 />
               </div>
             </div>

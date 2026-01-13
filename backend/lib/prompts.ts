@@ -108,6 +108,14 @@ MESSAGE TO ANALYZE:
 
 CRITICAL: Analyze THIS message above based on its actual words, tone, and content. Do not assume negativity based on context - evaluate the message itself objectively.
 
+IMPORTANT: First determine the MESSAGE DIRECTION:
+- SELF-EXPRESSIVE: Messages where the speaker expresses their own feelings, struggles, or experiences (e.g., "I am hopeless", "I'm struggling with this", "I feel overwhelmed"). These messages are ABOUT THE SPEAKER, not the recipient.
+- RECIPIENT-DIRECTED: Messages that are about, directed at, or blame the recipient (e.g., "You are wrong", "This is your fault", "You need to fix this"). These messages are ABOUT THE RECIPIENT.
+
+The message direction CRITICALLY affects recipient response:
+- SELF-EXPRESSIVE messages typically evoke: concern, empathy, desire to help, support - NOT defensiveness
+- RECIPIENT-DIRECTED messages typically evoke: defensiveness, blame, conflict, resistance
+
 Evaluate these four metrics (0-100 scale) based on the message above:
 1. "Emotional Friction" - How much negative emotion this SPECIFIC message may trigger (0 = none, 100 = very high)
 2. "Defensive Response Likelihood" - Probability recipient becomes defensive from THIS message (0 = very unlikely, 100 = very likely)
@@ -116,8 +124,13 @@ Evaluate these four metrics (0-100 scale) based on the message above:
 
 EVALUATION GUIDELINES:
 - Positive/reassuring messages (e.g., "All is fine", "Thank you", "Great work") should have LOW Emotional Friction, LOW Defensive Response, LOW Relationship Strain, and HIGH Cooperation Likelihood
+- SELF-EXPRESSIVE messages (e.g., "I am hopeless", "I'm struggling") should have:
+  * LOW to MEDIUM Defensive Response Likelihood (recipient feels concern, not attacked)
+  * LOW to MEDIUM Relationship Strain (vulnerability can strengthen bonds)
+  * MEDIUM to HIGH Cooperation Likelihood (recipient wants to help)
+  * Emotional Friction depends on the emotional weight of the self-expression
+- RECIPIENT-DIRECTED negative messages should have HIGH Emotional Friction, HIGH Defensive Response, HIGH Relationship Strain, and LOW Cooperation Likelihood
 - Neutral messages should have medium values across metrics
-- Negative/confrontational messages should have HIGH Emotional Friction, HIGH Defensive Response, HIGH Relationship Strain, and LOW Cooperation Likelihood
 - Base your evaluation on the actual message text, not assumptions
 
 CRITICAL RULES FOR METRICS ARRAY:
@@ -128,7 +141,10 @@ CRITICAL RULES FOR METRICS ARRAY:
    - value: Integer between 0 and 100 inclusive (required, must be 0-100)
    - category: "low" (0-33), "medium" (34-66), or "high" (67-100) (required, must match the value range)
 
-Also provide recipientResponse: A realistic prediction of how the recipient might think or feel upon reading THIS specific message (required, non-empty string). Base this on the actual message content.
+Also provide recipientResponse: A realistic prediction of how the recipient might think or feel upon reading THIS specific message (required, non-empty string). 
+- For SELF-EXPRESSIVE messages: Focus on concern, empathy, desire to help/support
+- For RECIPIENT-DIRECTED messages: Focus on how the recipient perceives being addressed
+- Base this on the actual message content and direction
 
 Respond with this exact JSON structure:
 {
@@ -172,10 +188,36 @@ For each of the 3 alternatives, provide:
   - text: Tag label like "Collaborative", "Direct", "Empathetic" (required, non-empty string)
   - isPositive: true or false (required boolean)
 
+CRITICAL RULES FOR EQUIVALENT REWRITES:
+1. PRESERVE SPEAKER PERSPECTIVE: 
+   - If original uses "I", alternatives MUST use "I" (not "you" or "they")
+   - If original uses "you", alternatives MUST use "you" (not "I" or "they")
+   - DO NOT switch from first-person to second-person or vice versa
+   - Example: "I felt dismissed" → "I felt overlooked" ✅ NOT "I can see you felt overlooked" ❌
+
+2. PRESERVE EMOTIONAL OWNERSHIP:
+   - If speaker expresses their own feelings, alternatives MUST express the speaker's feelings
+   - DO NOT change from self-expression to observation or interpretation
+   - Example: "I felt dismissed" → "I felt overlooked" ✅ NOT "It seems you felt dismissed" ❌
+
+3. PRESERVE COMMUNICATIVE INTENT:
+   - If original is a statement, alternatives MUST be statements (not questions or responses)
+   - If original is a question, alternatives MUST be questions
+   - DO NOT change from expressing to responding or interpreting
+   - Alternatives are REWRITES, not responses or interpretations
+
+4. IMPROVE EMOTIONAL IMPACT:
+   - Reduce potential for negative emotional response
+   - Use softer language while maintaining the same meaning
+   - Vary in approach (e.g., one more direct, one more empathetic, one more collaborative)
+
 Create 3 alternatives that:
 1. Preserve the original intent of the message above
-2. Reduce potential for negative emotional response
-3. Vary in approach (e.g., one more direct, one more empathetic, one more collaborative)
+2. Preserve speaker perspective (I stays I, you stays you)
+3. Preserve emotional ownership (speaker's feelings stay speaker's feelings)
+4. Preserve communicative intent (statement stays statement, question stays question)
+5. Reduce potential for negative emotional response
+6. Vary in approach (e.g., one more direct, one more empathetic, one more collaborative)
 
 Respond with this exact JSON array format (MUST have exactly 3 items, NOT empty):
 [

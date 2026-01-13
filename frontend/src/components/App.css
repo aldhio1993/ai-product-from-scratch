@@ -162,18 +162,33 @@
   font-size: 16px;
 }
 
-/* Intent Cards */
-.intent-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+/* Intent Rows */
+.intent-rows {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-.intent-card {
-  padding: 18px;
-  background: var(--color-bg-tertiary);
+.intent-row {
+  padding: 18px 20px;
   border-radius: 6px;
-  border: 1px solid var(--color-border);
+  border-left: 4px solid;
+  transition: all 0.2s;
+}
+
+.intent-row-primary {
+  background: rgba(37, 99, 235, 0.06);
+  border-left-color: var(--color-primary);
+}
+
+.intent-row-secondary {
+  background: rgba(217, 119, 6, 0.06);
+  border-left-color: var(--color-warning);
+}
+
+.intent-row-implicit {
+  background: rgba(139, 92, 246, 0.06);
+  border-left-color: #8b5cf6;
 }
 
 .intent-label {
@@ -181,16 +196,27 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-text-tertiary);
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 10px;
+}
+
+.intent-row-primary .intent-label {
+  color: var(--color-primary);
+}
+
+.intent-row-secondary .intent-label {
+  color: var(--color-warning);
+}
+
+.intent-row-implicit .intent-label {
+  color: #8b5cf6;
 }
 
 .intent-value {
   font-size: 16px;
   color: var(--color-text-primary);
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1.6;
 }
 
 /* Emotion Tags */

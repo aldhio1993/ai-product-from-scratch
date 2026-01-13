@@ -32,6 +32,7 @@ import {
 } from './prompts.js';
 import { generateWithRetry } from './generator.js';
 import type { LLMServiceConfig, GenerationOptions } from './types.js';
+import type { LLMLogger } from './llm-logger.js';
 
 /**
  * LLM Service
@@ -64,6 +65,7 @@ export class LLMService {
     alternatives: LlamaJsonSchemaGrammar | null;
   };
   private isInitialized = false;
+  private logger: LLMLogger | null = null;
 
   constructor(config: LLMServiceConfig) {
     this.config = {
@@ -93,6 +95,16 @@ export class LLMService {
   // ---------------------------------------------------------------------------
   // Initialization
   // ---------------------------------------------------------------------------
+
+  /**
+   * Set the logger instance
+   */
+  setLogger(logger: LLMLogger): void {
+    this.logger = logger;
+    if (this.config.modelPath) {
+      logger.setModelPath(this.config.modelPath);
+    }
+  }
 
   /**
    * Initialize the LLM service
@@ -125,6 +137,11 @@ export class LLMService {
     this.grammars.tone = await this.llama.createGrammarForJsonSchema(llamaToneSchema);
     this.grammars.impact = await this.llama.createGrammarForJsonSchema(llamaImpactSchema);
     this.grammars.alternatives = await this.llama.createGrammarForJsonSchema(llamaAlternativesSchema);
+
+    // Update logger with model path if available
+    if (this.logger) {
+      this.logger.setModelPath(this.config.modelPath);
+    }
 
     this.isInitialized = true;
     console.log('LLM service initialized successfully');
@@ -161,7 +178,7 @@ export class LLMService {
   /**
    * Analyze the intent of a message
    */
-  async analyzeIntent(message: string, context?: string): Promise<IntentAnalysis> {
+  async analyzeIntent(message: string, context?: string, sessionId?: string): Promise<IntentAnalysis> {
     this.ensureInitialized('intent');
     return this.generateAnalysis(
       buildIntentPrompt,
@@ -169,14 +186,16 @@ export class LLMService {
       this.validators.intent,
       message,
       context,
-      { temperature: 0.5 }
+      { temperature: 0.5 },
+      'intent',
+      sessionId
     );
   }
 
   /**
    * Analyze the tone of a message
    */
-  async analyzeTone(message: string, context?: string): Promise<ToneAnalysis> {
+  async analyzeTone(message: string, context?: string, sessionId?: string): Promise<ToneAnalysis> {
     this.ensureInitialized('tone');
     return this.generateAnalysis(
       buildTonePrompt,
@@ -184,14 +203,16 @@ export class LLMService {
       this.validators.tone,
       message,
       context,
-      { temperature: 0.6 }
+      { temperature: 0.6 },
+      'tone',
+      sessionId
     );
   }
 
   /**
    * Predict the impact on the recipient
    */
-  async predictImpact(message: string, context?: string): Promise<ImpactAnalysis> {
+  async predictImpact(message: string, context?: string, sessionId?: string): Promise<ImpactAnalysis> {
     this.ensureInitialized('impact');
     return this.generateAnalysis(
       buildImpactPrompt,
@@ -199,14 +220,16 @@ export class LLMService {
       this.validators.impact,
       message,
       context,
-      { temperature: 0.5 }
+      { temperature: 0.5 },
+      'impact',
+      sessionId
     );
   }
 
   /**
    * Generate alternative phrasings
    */
-  async generateAlternatives(message: string, context?: string): Promise<Alternative[]> {
+  async generateAlternatives(message: string, context?: string, sessionId?: string): Promise<Alternative[]> {
     this.ensureInitialized('alternatives');
     return this.generateAnalysis(
       buildAlternativesPrompt,
@@ -214,7 +237,9 @@ export class LLMService {
       this.validators.alternatives,
       message,
       context,
-      { temperature: 0.6, maxTokens: 6000 }
+      { temperature: 0.6, maxTokens: 6000 },
+      'alternatives',
+      sessionId
     );
   }
 
@@ -226,7 +251,8 @@ export class LLMService {
    */
   async analyzeBatched(
     message: string,
-    context?: string
+    context?: string,
+    sessionId?: string
   ): Promise<{
     intent: IntentAnalysis;
     tone: ToneAnalysis;
@@ -265,10 +291,13 @@ export class LLMService {
           {
             contextSequence: sequence1,
             contextSize: batchedContext.contextSize,
+            sessionId,
+            logger: this.logger || undefined,
           },
           context,
           { temperature: 0.5 },
-          buildRetryPrompt
+          buildRetryPrompt,
+          'intent'
         ),
         generateWithRetry(
           buildTonePrompt,
@@ -278,10 +307,13 @@ export class LLMService {
           {
             contextSequence: sequence2,
             contextSize: batchedContext.contextSize,
+            sessionId,
+            logger: this.logger || undefined,
           },
           context,
           { temperature: 0.6 },
-          buildRetryPrompt
+          buildRetryPrompt,
+          'tone'
         ),
         generateWithRetry(
           buildImpactPrompt,
@@ -291,10 +323,13 @@ export class LLMService {
           {
             contextSequence: sequence3,
             contextSize: batchedContext.contextSize,
+            sessionId,
+            logger: this.logger || undefined,
           },
           context,
           { temperature: 0.5 },
-          buildRetryPrompt
+          buildRetryPrompt,
+          'impact'
         ),
         generateWithRetry(
           buildAlternativesPrompt,
@@ -304,10 +339,13 @@ export class LLMService {
           {
             contextSequence: sequence4,
             contextSize: batchedContext.contextSize,
+            sessionId,
+            logger: this.logger || undefined,
           },
           context,
           { temperature: 0.6, maxTokens: 6000 },
-          buildRetryPrompt
+          buildRetryPrompt,
+          'alternatives'
         ),
       ]);
 
@@ -336,7 +374,9 @@ export class LLMService {
     validator: ValidateFunction<T>,
     message: string,
     context: string | undefined,
-    options: GenerationOptions
+    options: GenerationOptions,
+    analysisType: 'intent' | 'tone' | 'impact' | 'alternatives',
+    sessionId?: string
   ): Promise<T> {
     if (!this.contextSequence || !this.context) {
       throw new Error('LLM service not initialized. Call initialize() first.');
@@ -350,10 +390,13 @@ export class LLMService {
       {
         contextSequence: this.contextSequence,
         contextSize: this.context.contextSize,
+        sessionId,
+        logger: this.logger || undefined,
       },
       context,
       options,
-      buildRetryPrompt
+      buildRetryPrompt,
+      analysisType
     );
   }
 

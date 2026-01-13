@@ -45,7 +45,7 @@ function LoadingSection({ title }: { title: string }) {
 }
 
 export function AnalysisPanel({ analysis, isLoading }: AnalysisPanelProps) {
-  if (isLoading && !analysis) {
+  if (isLoading) {
     return (
       <div className="analysis-panel">
         <LoadingSection title="Intent Detection" />

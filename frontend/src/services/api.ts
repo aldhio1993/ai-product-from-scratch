@@ -1,6 +1,7 @@
 import axios, { AxiosError, CancelTokenSource } from 'axios';
 import type {
   AnalyzeRequest,
+  AnalyzeResponse,
   IntentAnalysis,
   ToneAnalysis,
   ImpactAnalysis,
@@ -238,35 +239,25 @@ export async function generateAlternatives(
 }
 
 /**
- * Analyze complete message (all analyses in parallel)
+ * Analyze complete message using the batched endpoint
+ * This uses the new /analyze endpoint that processes all analyses in parallel using batching
  */
 export async function analyzeMessage(
   message: string,
-  sessionId: string
+  sessionId?: string
 ): Promise<{ data: AnalysisResult; sessionId: string }> {
   try {
-    // Call all endpoints in parallel
-    const [intentResult, toneResult, impactResult, alternativesResult] = await Promise.all([
-      analyzeIntent(message, sessionId),
-      analyzeTone(message, sessionId),
-      analyzeImpact(message, sessionId),
-      generateAlternatives(message, sessionId),
-    ]);
-
-    // Use the sessionId from the first response (they should all be the same)
-    const finalSessionId = intentResult.sessionId;
-
-    const analysisResult: AnalysisResult = {
-      intent: intentResult.data,
-      tone: toneResult.data,
-      impact: impactResult.data,
-      alternatives: alternativesResult.data,
-    };
-
-    return {
-      data: analysisResult,
-      sessionId: finalSessionId,
-    };
+    const request: AnalyzeRequest = { message, sessionId };
+    const response = await apiClient.post<AnalyzeResponse>('/analyze', request);
+    
+    if (response.data.success) {
+      return {
+        data: response.data.data,
+        sessionId: response.data.sessionId,
+      };
+    }
+    
+    throw new Error('Invalid response from server');
   } catch (error) {
     throw new Error(getErrorMessage(error));
   }

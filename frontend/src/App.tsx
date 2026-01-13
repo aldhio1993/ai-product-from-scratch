@@ -93,8 +93,8 @@ function App() {
     try {
       const response = await analyzeMessage(messageToAnalyze, currentSessionId);
       setAnalysis(response.data);
-      // Update sessionId if it changed (shouldn't happen, but just in case)
-      if (response.sessionId !== currentSessionId) {
+      // Update sessionId (backend may create a new one if none provided)
+      if (response.sessionId) {
         setSessionId(response.sessionId);
       }
     } catch (err) {

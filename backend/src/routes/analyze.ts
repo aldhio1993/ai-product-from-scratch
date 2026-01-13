@@ -12,6 +12,44 @@ import type { LLMService } from '../../lib/llm-service.js';
  * 
  * Main endpoint for analyzing communication messages.
  * Handles session management and coordinates parallel LLM analysis.
+ * 
+ * API DESIGN DECISIONS:
+ * 
+ * 1. **Single Endpoint for Full Analysis**
+ *    - Why: Frontend typically needs all analyses (intent, tone, impact, alternatives)
+ *    - Benefit: One request instead of four, faster overall (batching)
+ *    - Alternative: Separate endpoints - available but full analysis is common case
+ * 
+ * 2. **Session Management in Handler**
+ *    - Why: Each analysis should have conversation context if available
+ *    - How: Get or create session, format context, pass to LLM
+ *    - Benefit: Context-aware analysis improves accuracy
+ * 
+ * 3. **Batched Analysis**
+ *    - Why: Running 4 analyses in parallel is ~3x faster than sequential
+ *    - How: llmService.analyzeBatched() runs all in parallel
+ *    - Trade-off: Uses more memory temporarily, but much faster
+ * 
+ * 4. **Error Handling Strategy**
+ *    - Try-catch at handler level: Catches LLM errors, validation errors, etc.
+ *    - Pass to Express error handler: Centralized error handling
+ *    - Logging: Console logs for debugging, structured logging in LLM service
+ * 
+ * REQUEST FLOW:
+ * 1. Validate request (middleware: validateAnalyzeRequest)
+ * 2. Check model ready (middleware: requireModelReady)
+ * 3. Get or create session (sessionManager)
+ * 4. Format context from session history (if available)
+ * 5. Run batched analysis (llmService.analyzeBatched)
+ * 6. Store interaction in session (for future context)
+ * 7. Return response with sessionId
+ * 
+ * HOW IT RELATES TO OTHER COMPONENTS:
+ * - Express app (app.ts) → Routes requests here
+ * - Middleware → Validates request, checks model ready
+ * - SessionManager → Manages conversation context
+ * - LLMService → Executes analysis
+ * - Frontend (api.ts) → Calls this endpoint
  */
 export function createAnalyzeHandler(
   llmService: LLMService,
@@ -62,7 +100,11 @@ export function createAnalyzeHandler(
 
         console.log(`[Analyze] Processing request for message: "${message.substring(0, 50)}..."`);
 
-        // Get or create session
+        // SESSION MANAGEMENT STRATEGY:
+        // - If sessionId provided: Use it (frontend maintains session across requests)
+        // - If session not found: Create new (prevents errors, handles edge cases)
+        // - If no sessionId: Create new (first message in conversation)
+        // Why: Flexible - supports both sessioned and stateless analysis
         let sessionId = providedSessionId;
         if (!sessionId) {
           const session = sessionManager.createSession();
@@ -80,7 +122,11 @@ export function createAnalyzeHandler(
           }
         }
 
-        // Get conversation context if available
+        // CONTEXT FORMATTING:
+        // - Gets conversation history from session
+        // - Formats as text for LLM prompts
+        // - Optional: If no history, context is undefined (analyze in isolation)
+        // - Prompts explicitly state context is "for flow only" to prevent over-interpretation
         const context = sessionManager.formatContext(sessionId);
         if (context) {
           console.log(
@@ -88,12 +134,19 @@ export function createAnalyzeHandler(
           );
         }
 
-        // Run all analyses in parallel using batching
+        // BATCHED ANALYSIS:
+        // - Runs all 4 analyses (intent, tone, impact, alternatives) in parallel
+        // - ~3x faster than sequential execution
+        // - Uses temporary context with 4 sequences (see llm-service.ts)
+        // - Passes sessionId for logging/debugging
         console.log('[Analyze] Starting batched LLM analysis...');
         const data = await llmService.analyzeBatched(message, context || undefined, sessionId);
         console.log('[Analyze] Batched LLM analysis completed');
 
-        // Store interaction in session
+        // STORE INTERACTION:
+        // - Saves message + analysis results to session
+        // - Used for future context (next message in conversation)
+        // - Enables context-aware analysis for subsequent messages
         sessionManager.addInteraction(sessionId, message, data);
 
         const response: AnalyzeResponse = {

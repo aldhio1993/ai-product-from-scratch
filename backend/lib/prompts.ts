@@ -2,6 +2,49 @@
 // System Prompts for Communication Analysis
 // =============================================================================
 
+/**
+ * DESIGN DECISION: Why These Prompts?
+ * 
+ * These prompts evolved through iterative testing to solve specific problems:
+ * 
+ * 1. **Over-interpretation Problem**: Early versions would turn simple requests like
+ *    "Can you send the document?" into complex relationship analyses. We added
+ *    "CALIBRATION RULES" to match analysis depth to message complexity.
+ * 
+ * 2. **Inconsistent Output Format**: LLMs would sometimes return markdown, sometimes
+ *    plain text, sometimes incomplete JSON. We use JSON schema grammars (in generator.ts)
+ *    to enforce structure, but prompts must also emphasize JSON-only output.
+ * 
+ * 3. **Context Confusion**: When conversation context is provided, LLMs would sometimes
+ *    analyze the context instead of the current message. We explicitly state context
+ *    is "for flow only" and never to override the message itself.
+ * 
+ * 4. **Truncation Issues**: LLMs would cut off mid-sentence, especially in longer fields.
+ *    We emphasize "COMPLETE" fields and validate truncation in generator.ts.
+ * 
+ * ALTERNATIVES CONSIDERED:
+ * - Few-shot examples: Rejected because they increase token usage and don't scale well
+ * - Chain-of-thought: Rejected because we need direct JSON output, not reasoning steps
+ * - Separate system/user prompts: Current approach uses a single prompt for simplicity
+ * 
+ * HOW THIS RELATES TO OTHER COMPONENTS:
+ * - Prompts define WHAT to analyze → JSON schemas (schemas.ts) define the STRUCTURE
+ * - Prompts request JSON → JSON schema grammars (llm-service.ts) ENFORCE valid JSON
+ * - Prompts emphasize completeness → generator.ts VALIDATES for truncation
+ * - Prompts include calibration → llm-service.ts POST-PROCESSES to normalize results
+ */
+
+/**
+ * BASE_INSTRUCTIONS: Core rules applied to all analysis types
+ * 
+ * These rules were extracted from repeated failures:
+ * - Rule 1 (JSON only): Prevents markdown code blocks that break parsing
+ * - Rule 2 (strict text basis): Prevents hallucinated context that wasn't provided
+ * - Rule 3 (linguistically supported): Prevents psychoanalysis of simple requests
+ * - Rule 4 (avoid mind-reading): Uses hedging language ("may", "can signal") for uncertainty
+ * - Rule 7 (complete fields): Addresses truncation issues where fields end mid-sentence
+ * - Rule 8 (no system leaks): Prevents LLM from exposing internal schema language
+ */
 const BASE_INSTRUCTIONS = `You are a communication analysis expert specializing in interpersonal dynamics, emotional intelligence, and professional communication.
 
 CRITICAL RULES:
@@ -20,6 +63,42 @@ CRITICAL RULES:
 // Intent Analysis Prompt
 // -----------------------------------------------------------------------------
 
+/**
+ * Intent Analysis Prompt
+ * 
+ * PURPOSE: Identify what the speaker is trying to accomplish at three levels:
+ * - Primary: The explicit, surface-level goal
+ * - Secondary: Supporting goals or subtext
+ * - Implicit: Unstated emotional/relational goals (only if linguistically supported)
+ * 
+ * DESIGN DECISION: Three-level hierarchy
+ * - Alternative considered: Single "intent" field
+ * - Why three levels: Allows distinguishing between "what they said" vs "what they mean"
+ *   without forcing every message to have hidden meanings
+ * 
+ * CALIBRATION RULES - Why They Exist:
+ * These rules were added after observing LLMs over-interpret simple messages:
+ * 
+ * - Rule 1: "Simple requests = simple interpretations"
+ *   Problem: "Send the document" was being analyzed as "seeking validation" or
+ *   "testing relationship boundaries"
+ *   Solution: Match complexity of analysis to complexity of message
+ * 
+ * - Rule 3: "Finally" ≠ relationship crisis
+ *   Problem: The word "finally" triggered dramatic interpretations about relationship
+ *   breakdown, when it's just mild impatience about delays
+ *   Solution: Explicitly calibrate common words to realistic interpretations
+ * 
+ * - Rule 4: Match analysis depth to message complexity
+ *   Problem: 7-word requests getting 3-paragraph analyses
+ *   Solution: Proportional analysis - short messages get concise analyses
+ * 
+ * HOW IT RELATES TO OTHER COMPONENTS:
+ * - Intent analysis feeds into impact prediction (impact.ts) - understanding intent
+ *   helps predict how recipient will respond
+ * - Context is optional - messages can be analyzed in isolation OR with conversation
+ *   history (session-manager.ts provides context formatting)
+ */
 export function buildIntentPrompt(message: string, context?: string): string {
   const contextSection = context
     ? `\nCONVERSATION CONTEXT (for flow only):\n${context}\n`
@@ -65,6 +144,42 @@ Respond with EXACT JSON:
 // Tone Analysis Prompt
 // -----------------------------------------------------------------------------
 
+/**
+ * Tone Analysis Prompt
+ * 
+ * PURPOSE: Identify emotional tone, sentiment, and how the message feels
+ * 
+ * DESIGN DECISION: Three-part structure (summary, emotions array, details)
+ * - Alternative considered: Single "tone" string
+ * - Why this structure: 
+ *   - Summary: Quick overview for UI display
+ *   - Emotions array: Structured data for visualization (sentiment tags, emotion chips)
+ *   - Details: Explanatory text quoting specific words/phrases
+ * 
+ * CALIBRATION RULES - Evolution:
+ * 
+ * EMOTIONS SCALING:
+ * - Problem: Every message was getting "Frustrated" or "Anxious" even for neutral requests
+ * - Solution: Explicit examples showing intensity scaling:
+ *   * "Can you send this?" → Task-Focused (neutral) [not "Anxious" or "Demanding"]
+ *   * "Can you finally send this?" → Mildly Impatient (negative) [not "Frustrated and Hostile"]
+ * 
+ * PASSIVE-AGGRESSIVE DETECTION:
+ * - Problem: Single words like "finally" were flagged as passive-aggressive
+ * - Solution: Require MULTIPLE markers (contradiction + sarcasm + withdrawal)
+ * - Why: Passive-aggressive is a pattern, not a single word
+ * 
+ * EMOTIONS FIELD FORMAT:
+ * - Problem: LLM would sometimes put the original message in the emotion "text" field
+ * - Solution: Explicit examples showing emotion labels, not message quotes
+ * - This is validated in llm-service.ts (cleanEmotionLabel function)
+ * 
+ * HOW IT RELATES TO OTHER COMPONENTS:
+ * - Tone analysis is post-processed in llm-service.ts (filterNeutralEmotions) to remove
+ *   redundant "Neutral" entries that add no signal
+ * - Emotion labels are cleaned/normalized (cleanEmotionLabel) to fix formatting issues
+ * - Sentiment is validated against emotion text (negative emotions must have "negative" sentiment)
+ */
 export function buildTonePrompt(message: string, context?: string): string {
   const contextSection = context
     ? `\nCONVERSATION CONTEXT (for flow only):\n${context}\n`
@@ -129,6 +244,44 @@ Return ONLY valid JSON.`;
 // Impact Prediction Prompt
 // -----------------------------------------------------------------------------
 
+/**
+ * Impact Prediction Prompt
+ * 
+ * PURPOSE: Predict how a reasonable recipient will perceive and respond to the message
+ * 
+ * DESIGN DECISION: Four metrics (Friction, Defensiveness, Strain, Cooperation)
+ * - Alternative considered: Single "impact score"
+ * - Why four metrics: Different dimensions matter for different use cases:
+ *   - Friction: Immediate emotional reaction
+ *   - Defensiveness: Likelihood of defensive response
+ *   - Strain: Long-term relationship impact
+ *   - Cooperation: Likelihood of desired action
+ * 
+ * CALIBRATION FRAMEWORK - Critical for Realism:
+ * 
+ * BASELINE ASSUMPTION:
+ * - Most workplace messages are LOW friction (0-30)
+ * - Problem: LLMs would score routine requests as medium/high friction
+ * - Solution: Explicit baseline stating most messages are low friction
+ * 
+ * SCORING GUIDE WITH EXAMPLES:
+ * - Problem: LLMs had no reference for what "medium" friction looks like
+ * - Solution: Concrete examples with score ranges:
+ *   * "Can you send the document?" → Friction: 5-10 (low)
+ *   * "Can you finally send the document today?" → Friction: 15-25 (still low, not medium)
+ *   * "I've asked you three times. This is unacceptable." → Friction: 50-65 (medium-high)
+ * 
+ * CRITICAL RULE: Urgency increases cooperation
+ * - Problem: Urgent requests ("finally", "today") were getting Cooperation Likelihood of 0
+ * - Reality: Social pressure and urgency typically INCREASE compliance
+ * - Solution: Explicit rule that urgency increases cooperation, not decreases it
+ * 
+ * HOW IT RELATES TO OTHER COMPONENTS:
+ * - Impact metrics are normalized in llm-service.ts (normalizeImpactMetrics):
+ *   * Categories are corrected to match value thresholds (0-30=low, 31-60=medium, 61-100=high)
+ *   * Logical consistency is enforced (low cooperation + low friction + low strain = impossible)
+ *   * Unrealistic cooperation scores (0 for urgent requests) are corrected
+ */
 export function buildImpactPrompt(message: string, context?: string): string {
   const contextSection = context
     ? `\nCONVERSATION CONTEXT (for reference only):\n${context}\n`
@@ -190,6 +343,51 @@ Return EXACT JSON:
 // Alternatives Generation Prompt
 // -----------------------------------------------------------------------------
 
+/**
+ * Alternatives Generation Prompt
+ * 
+ * PURPOSE: Generate 3 alternative phrasings that may improve communication
+ * 
+ * DESIGN DECISION: Three options across a spectrum (softer, direct, contextual)
+ * - Alternative considered: Single "improved" version
+ * - Why three options: Different contexts need different approaches:
+ *   - Option A: Softer/more diplomatic (for sensitive situations)
+ *   - Option B: Clearer/more direct (directness has value!)
+ *   - Option C: Context-dependent (adapts to relationship state)
+ * 
+ * PHILOSOPHICAL DECISION: Not every message needs softening
+ * - Problem: Early versions would always suggest softer alternatives, even when
+ *   the original was appropriate
+ * - Solution: Explicit instruction that over-softening can seem passive or insincere
+ * - Example: "Can you finally send the document?" is acceptable in most contexts
+ * 
+ * PRESERVATION RULES - Why They Exist:
+ * These rules prevent alternatives from changing the fundamental message:
+ * 
+ * - Preserve speaker perspective: "I" stays "I", "you" stays "you"
+ *   Problem: Alternatives would flip perspectives ("I feel dismissed" → "You made me feel dismissed")
+ *   Solution: Explicit rule to maintain original perspective
+ * 
+ * - Preserve emotional ownership: Speaker's feelings stay speaker's feelings
+ *   Problem: "I feel hurt" would become "You hurt me" (shifting blame)
+ *   Solution: Maintain ownership of emotions
+ * 
+ * - Preserve communicative intent: Statements stay statements
+ *   Problem: Statements would become questions or responses
+ *   Solution: Alternatives are REWRITES, not responses
+ * 
+ * SEMANTIC SHIFT TRANSPARENCY:
+ * - Problem: Word substitutions ("dismissed" → "ignored" → "taken for granted") change meaning
+ *   but weren't acknowledged
+ * - Solution: Require explicit acknowledgment when semantic shifts occur
+ * - Why: Builds user trust by being transparent about meaning changes
+ * 
+ * HOW IT RELATES TO OTHER COMPONENTS:
+ * - Alternatives are filtered in llm-service.ts (filterValidAlternatives) to remove
+ *   broken options (empty text, empty reasons, invalid tags)
+ * - Rule: "Fewer valid options > broken options" - better to return 2 good alternatives
+ *   than 3 where one is broken
+ */
 export function buildAlternativesPrompt(message: string, context?: string): string {
   const contextSection = context
     ? `\nCONVERSATION CONTEXT:\n${context}\n`
@@ -261,6 +459,45 @@ Return EXACT JSON array with 3 items:
 // Retry Prompt Wrapper
 // -----------------------------------------------------------------------------
 
+/**
+ * Retry Prompt Builder
+ * 
+ * PURPOSE: Enhance the original prompt with specific error feedback when validation fails
+ * 
+ * DESIGN DECISION: Error-specific warnings rather than generic retry message
+ * - Alternative considered: Simple "try again" message
+ * - Why error-specific: Different errors need different guidance:
+ *   - Empty strings → Emphasize completeness requirements
+ *   - Truncation → Emphasize complete sentences, proper punctuation
+ *   - Schema violations → Show exact field requirements
+ *   - Semantic issues → Provide examples of correct vs incorrect
+ * 
+ * HOW IT WORKS:
+ * 1. Analyzes the validation error to identify the specific problem
+ * 2. Adds targeted warnings explaining what went wrong
+ * 3. Provides examples of correct vs incorrect output
+ * 4. Reinforces the original prompt requirements
+ * 
+ * RETRY STRATEGY (see generator.ts):
+ * - Max 2 attempts (not infinite to prevent loops)
+ * - First attempt: Original prompt
+ * - Second attempt: Enhanced prompt with error feedback
+ * - Why only 2: Most errors are fixed on retry; if not, the prompt needs improvement
+ * 
+ * ERROR CATEGORIES HANDLED:
+ * - Intent errors: Empty primary/secondary/implicit fields
+ * - Tone errors: Empty emotions array, empty details, sentiment mismatches
+ * - Impact errors: Empty metrics array, wrong metric names, category mismatches
+ * - Alternatives errors: Empty array, empty strings in fields, perspective flips
+ * - Truncation: Incomplete words, incomplete sentences, unclosed JSON
+ * 
+ * HOW IT RELATES TO OTHER COMPONENTS:
+ * - Called by generator.ts (generateWithRetry) when validation fails
+ * - Works with JSON schema grammars (llm-service.ts) - grammar enforces structure,
+ *   retry prompt explains WHY the structure matters
+ * - Complements Ajv validation (schemas.ts) - Ajv catches errors, retry prompt
+ *   helps LLM understand how to fix them
+ */
 export function buildRetryPrompt(originalPrompt: string, error: string): string {
   const isEmptyArrayError = error.includes('must NOT have fewer than 1 items');
   const isEmotionsError = error.includes('/emotions') && error.includes('must NOT have fewer than 1 items');

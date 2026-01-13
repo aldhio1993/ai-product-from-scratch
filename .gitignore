@@ -26,8 +26,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-logs/
-backend/logs/
 
 # TypeScript
 *.tsbuildinfo
@@ -36,7 +34,6 @@ backend/logs/
 *.local
 
 # LLM models (large files)
-models/
 *.gguf
 
 # Test coverage

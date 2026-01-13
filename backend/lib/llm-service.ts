@@ -45,7 +45,22 @@ import type { LLMLogger } from './llm-logger.js';
  * - Empty or whitespace-only reason
  * - Invalid tag arrays
  *
- * Rule: Fewer options > broken options
+ * DESIGN PHILOSOPHY: "Fewer options > broken options"
+ * 
+ * Why filter instead of retry?
+ * - Retry logic (in generator.ts) already tried twice
+ * - If still broken, the prompt/LLM has a fundamental issue
+ * - Better to return 2 good alternatives than 3 where one is broken
+ * 
+ * Why not throw error?
+ * - Partial results are better than no results
+ * - Frontend can handle 1-3 alternatives gracefully
+ * - User gets value even if one alternative generation failed
+ * 
+ * ALTERNATIVES CONSIDERED:
+ * - Throw error if any alternative is invalid: Rejected - too strict, hurts UX
+ * - Return all including broken: Rejected - broken alternatives confuse users
+ * - Retry individual alternatives: Considered but complex, current approach simpler
  */
 function filterValidAlternatives(alternatives: Alternative[]): Alternative[] {
   return alternatives.filter((alt) => {
@@ -88,6 +103,33 @@ function filterValidAlternatives(alternatives: Alternative[]): Alternative[] {
  *
  * Also enforces logical consistency: if cooperation is low due to withdrawal,
  * emotional friction and relationship strain cannot both be low.
+ * 
+ * WHY THIS EXISTS:
+ * 
+ * Problem 1: Category mismatches
+ * - LLM might return value=25 but category="high" (should be "low")
+ * - JSON schema grammar doesn't enforce category-value consistency
+ * - Solution: Normalize categories to match value thresholds
+ * 
+ * Problem 2: Logical inconsistencies
+ * - Scenario: Low cooperation (withdrawal/disengagement) but also low friction + low strain
+ * - Reality: If someone withdraws, there's usually friction or strain
+ * - Solution: If cooperation ≤30 and both friction/strain ≤30, adjust to medium
+ * 
+ * Problem 3: Unrealistic cooperation scores
+ * - Urgent requests ("finally", "today") were getting cooperation=0
+ * - Reality: Urgency and social pressure typically INCREASE compliance
+ * - Solution: If cooperation=0, adjust to 45 (medium) for urgent requests
+ * 
+ * DESIGN DECISION: Post-processing normalization
+ * - Alternative: Fix in prompt - but prompts are already complex
+ * - Why post-processing: Separates concerns, easier to debug, can log corrections
+ * - Trade-off: Adds processing step, but ensures correctness
+ * 
+ * HOW IT RELATES TO PROMPTS:
+ * - Prompts (prompts.ts) provide scoring guidelines and examples
+ * - This function enforces the guidelines programmatically
+ * - Together: Prompts guide LLM, normalization ensures correctness
  */
 function normalizeImpactMetrics(impact: ImpactAnalysis): ImpactAnalysis {
   const normalizedMetrics = impact.metrics.map((metric: ImpactMetric) => {
@@ -417,6 +459,43 @@ function filterNeutralEmotions(tone: ToneAnalysis): ToneAnalysis {
  *
  * Manages the local LLM model and provides methods for analyzing communication.
  *
+ * ARCHITECTURAL DECISIONS:
+ * 
+ * 1. **Local LLM vs API-based (e.g., OpenAI, Anthropic)**
+ *    - Why local: Privacy (messages never leave device), cost (no per-token charges),
+ *      offline capability, full control over model behavior
+ *    - Trade-off: Requires more RAM/VRAM, slower inference, model management overhead
+ *    - Alternative considered: API-based for simplicity, but rejected for privacy/control
+ * 
+ * 2. **Singleton Pattern**
+ *    - Why: Model loading is expensive (several seconds), should only happen once
+ *    - Alternative: Multiple instances would waste memory and slow startup
+ *    - Implementation: Factory function (getLLMService) ensures single instance
+ * 
+ * 3. **JSON Schema Grammars**
+ *    - Why: Enforce structured output at generation time (not just validation after)
+ *    - How: node-llama-cpp's LlamaJsonSchemaGrammar constrains token generation
+ *    - Benefit: Reduces invalid JSON, but doesn't eliminate need for validation (see generator.ts)
+ *    - Alternative: Post-generation parsing only - rejected because too many failures
+ * 
+ * 4. **Batching Strategy (analyzeBatched)**
+ *    - Why: Running 4 analyses sequentially takes ~4x longer
+ *    - How: Create temporary context with 4 sequences, run Promise.all()
+ *    - Trade-off: Uses more memory (4x context), but much faster
+ *    - Alternative: Sequential execution - rejected for performance
+ * 
+ * 5. **Post-Processing Pipeline**
+ *    - Why: LLM outputs need normalization even with schema grammars
+ *    - Examples: Category mismatches (value=25 but category="high"), sentiment mismatches,
+ *      logical inconsistencies (low cooperation but low friction)
+ *    - Philosophy: "Trust but verify" - use grammars for structure, validate for correctness
+ * 
+ * HOW COMPONENTS RELATE:
+ * - Prompts (prompts.ts) define WHAT to analyze → This service EXECUTES the analysis
+ * - Schemas (schemas.ts) define STRUCTURE → JSON grammars ENFORCE structure
+ * - Generator (generator.ts) handles RETRY LOGIC → This service calls generator
+ * - Session Manager (session-manager.ts) provides CONTEXT → This service uses it for analysis
+ * 
  * Responsibilities:
  * - Loading and managing the GGUF model
  * - Creating JSON schema grammars for structured output
@@ -488,6 +567,20 @@ export class LLMService {
    * Initialize the LLM service
    *
    * Loads the model and creates JSON schema grammars for structured output.
+   * 
+   * DESIGN DECISION: Lazy initialization
+   * - Model loads in background (see src/model-loader.ts) to avoid blocking server startup
+   * - This method is called when model is ready, not at service creation
+   * - Alternative: Eager loading - rejected because it blocks server startup for 10-30 seconds
+   * 
+   * JSON SCHEMA GRAMMARS:
+   * - Why create grammars here: They're tied to the specific model instance
+   * - What they do: Constrain token generation to only valid JSON matching the schema
+   * - Limitation: Grammars prevent invalid JSON structure, but don't prevent:
+   *   * Empty strings in required fields
+   *   * Wrong enum values (e.g., "high" when value is 25)
+   *   * Truncated text (grammar allows valid JSON, but text can be incomplete)
+   * - That's why we still need Ajv validation (see generator.ts)
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -635,6 +728,42 @@ export class LLMService {
    *
    * Creates a temporary context with 4 sequences and processes all analyses
    * simultaneously for improved performance.
+   * 
+   * BATCHING STRATEGY - Why This Matters:
+   * 
+   * Problem: Sequential execution is slow
+   * - Intent: ~3-5 seconds
+   * - Tone: ~3-5 seconds  
+   * - Impact: ~3-5 seconds
+   * - Alternatives: ~5-8 seconds (longer due to maxTokens: 6000)
+   * - Total sequential: ~14-23 seconds
+   * 
+   * Solution: Parallel execution with batching
+   * - All 4 analyses run simultaneously
+   * - Total time: ~5-8 seconds (bounded by longest analysis)
+   * - Speedup: ~3x faster
+   * 
+   * HOW IT WORKS:
+   * 1. Create temporary context with 4 sequences (one per analysis type)
+   * 2. Each sequence is independent - can generate tokens in parallel
+   * 3. Use Promise.all() to wait for all to complete
+   * 4. Clean up temporary context after use
+   * 
+   * TRADE-OFFS:
+   * - Memory: 4x context size (temporary, disposed after use)
+   * - Complexity: More complex than sequential, but worth it for 3x speedup
+   * - Error handling: If one fails, all fail (but that's usually desired - partial
+   *   results aren't useful for full analysis)
+   * 
+   * ALTERNATIVES CONSIDERED:
+   * - Sequential execution: Rejected for performance (too slow)
+   * - Streaming: Not supported by node-llama-cpp for grammar-constrained generation
+   * - Caching: Not applicable - each message is unique
+   * 
+   * WHY TEMPORARY CONTEXT:
+   * - Main context (this.context) is reused across requests for efficiency
+   * - Batching needs 4 sequences, but we only need them for this one request
+   * - Creating/disposing temporary context is cheaper than keeping 4 sequences always
    */
   async analyzeBatched(
     message: string,

